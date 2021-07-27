@@ -1,36 +1,55 @@
-from django.conf import settings
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
-from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
 
-from .managers import CustomUserManager
-
-ROLE_CHOICES = settings.ROLE_CHOICES
-USER = 'user'
+# Create your models here.
+from django.contrib.auth.models import AbstractUser
+from django.core.validators import validate_email
+from django.db import models
 
 
-class CustomUser(AbstractBaseUser, PermissionsMixin):
-    first_name = models.CharField('Имя', max_length=30, blank=True)
-    last_name = models.CharField('Фамилия', max_length=30, blank=True)
-    username = models.CharField('Username', max_length=30, unique=True)
-    bio = models.TextField('О себе', blank=True)
-    email = models.EmailField(_('Адрес электронной почты'), unique=True)
-    role = models.CharField(
-        'Роль пользователя', max_length=9, default=USER, choices=ROLE_CHOICES
+class UserRole(models.TextChoices):
+    USER = 'user'
+    MODERATOR = 'moderator'
+    ADMIN = 'admin'
+
+
+class User(AbstractUser):
+    """Расширение стандартной модели пользователя Django"""
+    bio = models.TextField(
+        blank=True,
     )
-    confirmation_code = models.TextField('Код подтверждения', blank=True)
-    is_staff = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
-    date_joined = models.DateTimeField(default=timezone.now)
+    email = models.EmailField(
+        blank=False,
+        unique=True,
+        validators=[validate_email],
+    )
+    role = models.CharField(
+        max_length=150,
+        blank=False,
+        choices=UserRole.choices,
+        default=UserRole.USER,
+    )
+    secret = models.CharField(
+        max_length=200,
+    )
+    username = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        unique=True,
+        db_index=True,
+    )
 
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']
+    @property
+    def is_admin(self):
+        if self.role == UserRole.ADMIN or self.is_superuser:
+            return True
 
-    objects = CustomUserManager()
+    @property
+    def is_moderator(self):
+        if self.role == UserRole.MODERATOR or self.is_superuser:
+            return True
 
     class Meta:
-        ordering = ['username']
-
-    def __str__(self):
-        return self.email
+        ordering = (
+            '-username',
+        )
